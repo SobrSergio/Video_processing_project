@@ -9,12 +9,16 @@
     <div class="container">
         <h1>Загрузите видео для обработки</h1>
         <form id="uploadForm" enctype="multipart/form-data">
+            <!-- Убрали стилизацию кнопки выбора файла -->
             <input type="file" name="video" id="video" required>
+            
             <label for="threshold">Порог обнаружения человека: <span id="thresholdValue">0.5</span></label>
             <input type="range" id="threshold" name="threshold" min="0" max="1" step="0.1" value="0.5" oninput="updateThreshold(this.value)">
+            
             <label for="min_size">Минимальный размер объекта:</label>
             <input type="number" id="min_size" name="min_size" min="0.1" max="1" value="0.1"><br><br>
-            <button type="submit">Загрузить и обработать</button>
+            
+            <button class="upload-btn" type="submit">Загрузить и обработать</button>
         </form>
 
         <div id="progress-container" style="display: none;">
@@ -66,7 +70,6 @@
                 const data = await response.json();
         
                 if (data.state === 'PENDING') {
-                    // Обновляем прогресс-бара на основе percent_complete
                     const progress = Math.min(data.percent_complete, 100);
                     progressBar.value = progress;
                     progressText.innerText = `${progress.toFixed(0)}%`;
@@ -76,8 +79,7 @@
                     result.style.display = 'block';
                     downloadLink.href = `/download/${data.result.split('/').pop()}`;
                     removedFramesSpan.innerText = data.removed_frames;
-        
-                    // Автоматическое скачивание файла
+
                     const a = document.createElement('a');
                     a.href = downloadLink.href;
                     a.download = 'processed_video.mp4';
@@ -87,7 +89,7 @@
                     progressContainer.style.display = 'none';
                     alert('Ошибка при обработке видео: ' + data.status);
                 }
-            }, 2000); // Проверка каждые 2 секунды
+            }, 2000);
         }        
         
         function updateThreshold(value) {
