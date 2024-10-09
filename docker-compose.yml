@@ -1,8 +1,9 @@
-version: '3'
+version: '3.8'
 services:
   app:
     build: .
+    volumes:
+      - ./app:/app
     ports:
       - "5000:5000"
-    volumes:
-      - .:/app
+    user: root

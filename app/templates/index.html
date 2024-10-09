@@ -1,0 +1,79 @@
+<!-- templates/index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Video Processing</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Загрузите видео для обработки</h1>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" name="video" id="video" required>
+            <label for="threshold">Порог обнаружения человека: <span id="thresholdValue">0.5</span></label>
+            <input type="range" id="threshold" name="threshold" min="0" max="1" step="0.1" value="0.5" oninput="updateThreshold(this.value)">
+            <label for="min_size">Минимальный размер объекта:</label>
+            <input type="number" id="min_size" name="min_size" min="0.1" max="1" value="0.1"><br><br>
+            <button type="submit">Загрузить и обработать</button>
+        </form>
+        <div id="loading" style="display: none;">Обработка видео...</div>
+        <div id="result" style="display: none;">
+            <h2>Результат обработки</h2>
+            <p>Удалено кадров с человеком: <span id="removedFrames"></span></p>
+            <a id="downloadLink" href="#" download>Скачать обработанное видео</a>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const removedFramesSpan = document.getElementById('removedFrames');
+        const downloadLink = document.getElementById('downloadLink');
+
+        form.onsubmit = async function(event) {
+            event.preventDefault();
+            loading.style.display = 'block';
+            result.style.display = 'none';
+
+            const formData = new FormData(form);
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            const taskId = data.task_id;
+
+            checkStatus(taskId);
+        }
+
+        async function checkStatus(taskId) {
+            const interval = setInterval(async () => {
+                const response = await fetch(`/status/${taskId}`);
+                const data = await response.json();
+    
+                if (data.state === 'PENDING') {
+                    loading.innerText = 'В обработке...';
+                } else if (data.state === 'SUCCESS') {
+                    clearInterval(interval);
+                    loading.style.display = 'none';
+                    result.style.display = 'block';
+                    downloadLink.href = `/download/${data.result.split('/').pop()}`;
+                    removedFramesSpan.innerText = data.removed_frames;
+                } else if (data.state === 'FAILURE') {
+                    clearInterval(interval);
+                    loading.style.display = 'none';
+                    alert('Ошибка при обработке видео: ' + data.status);
+                }
+            }, 2000); // Проверка каждые 2 секунды
+        }
+        
+        function updateThreshold(value) {
+            document.getElementById('thresholdValue').innerText = value;
+        }
+    </script>
+</body>
+</html>
