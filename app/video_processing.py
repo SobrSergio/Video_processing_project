@@ -3,11 +3,14 @@ import mediapipe as mp
 import os
 import logging
 
+# Настройки логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Настройки папок
 PROCESSED_FOLDER = "/app/processed"
 os.makedirs(PROCESSED_FOLDER, exist_ok=True)
 
+# Проверяем доступность GPU
 use_gpu = cv2.cuda.getCudaEnabledDeviceCount() > 0
 
 if use_gpu:
@@ -53,7 +56,9 @@ def detect_person(frame, min_size=0.1):
             return False, avg_confidence
     return False, 0.0
 
-def filter_video(input_video, threshold=0.5, min_size=0.1):
+def filter_video(input_video, threshold=0.5, min_size=0.1, task_id=None):
+    from main import tasks
+
     """Функция для фильтрации видео, удаляя кадры с человеком по заданным параметрам."""
     cap = cv2.VideoCapture(input_video)
     frame_width = int(cap.get(3))
@@ -70,6 +75,10 @@ def filter_video(input_video, threshold=0.5, min_size=0.1):
     logging.info(f"Начало обработки видео: {input_video}")
     logging.info(f"Общее количество кадров: {total_frames}")
 
+    # Обновляем общее количество кадров в задаче
+    if task_id:
+        tasks[task_id]['total_frames'] = total_frames
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -79,12 +88,18 @@ def filter_video(input_video, threshold=0.5, min_size=0.1):
         person_detected, confidence = detect_person(frame, min_size=min_size)
 
         if not person_detected or confidence < threshold:
-            out.write(frame) 
+            out.write(frame)
         else:
             removed_frames += 1
             logging.info(f"Кадр {frame_count} удален: человек обнаружен с уверенностью {confidence:.2f}")
 
         frame_count += 1
+
+        # Обновляем количество обработанных кадров в задаче
+        if task_id:
+            tasks[task_id]['processed_frames'] = frame_count
+            tasks[task_id]['percent_complete'] = (frame_count / total_frames) * 100 
+
 
     cap.release()
     out.release()

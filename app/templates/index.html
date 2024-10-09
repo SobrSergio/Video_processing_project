@@ -1,5 +1,3 @@
-<!-- templates/index.html -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,7 +16,15 @@
             <input type="number" id="min_size" name="min_size" min="0.1" max="1" value="0.1"><br><br>
             <button type="submit">Загрузить и обработать</button>
         </form>
+
+        <div id="progress-container" style="display: none;">
+            <label for="progress-bar">Обработка видео:</label>
+            <progress id="progress-bar" value="0" max="100"></progress>
+            <span id="progress-text">0%</span>
+        </div>
+
         <div id="loading" style="display: none;">Обработка видео...</div>
+        
         <div id="result" style="display: none;">
             <h2>Результат обработки</h2>
             <p>Удалено кадров с человеком: <span id="removedFrames"></span></p>
@@ -32,11 +38,15 @@
         const result = document.getElementById('result');
         const removedFramesSpan = document.getElementById('removedFrames');
         const downloadLink = document.getElementById('downloadLink');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const progressContainer = document.getElementById('progress-container');
 
         form.onsubmit = async function(event) {
             event.preventDefault();
-            loading.style.display = 'block';
+            loading.style.display = 'none'; 
             result.style.display = 'none';
+            progressContainer.style.display = 'block';
 
             const formData = new FormData(form);
             const response = await fetch('/upload', {
@@ -54,22 +64,31 @@
             const interval = setInterval(async () => {
                 const response = await fetch(`/status/${taskId}`);
                 const data = await response.json();
-    
+        
                 if (data.state === 'PENDING') {
-                    loading.innerText = 'В обработке...';
+                    // Обновляем прогресс-бара на основе percent_complete
+                    const progress = Math.min(data.percent_complete, 100);
+                    progressBar.value = progress;
+                    progressText.innerText = `${progress.toFixed(0)}%`;
                 } else if (data.state === 'SUCCESS') {
                     clearInterval(interval);
-                    loading.style.display = 'none';
+                    progressContainer.style.display = 'none';
                     result.style.display = 'block';
                     downloadLink.href = `/download/${data.result.split('/').pop()}`;
                     removedFramesSpan.innerText = data.removed_frames;
+        
+                    // Автоматическое скачивание файла
+                    const a = document.createElement('a');
+                    a.href = downloadLink.href;
+                    a.download = 'processed_video.mp4';
+                    a.click();
                 } else if (data.state === 'FAILURE') {
                     clearInterval(interval);
-                    loading.style.display = 'none';
+                    progressContainer.style.display = 'none';
                     alert('Ошибка при обработке видео: ' + data.status);
                 }
             }, 2000); // Проверка каждые 2 секунды
-        }
+        }        
         
         function updateThreshold(value) {
             document.getElementById('thresholdValue').innerText = value;

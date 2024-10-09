@@ -7,24 +7,30 @@ from video_processing import filter_video
 
 app = Flask(__name__)
 
+# Настройки папок
 UPLOAD_FOLDER = "/app/uploads"
 PROCESSED_FOLDER = "/app/processed"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(PROCESSED_FOLDER, exist_ok=True)
 
+# Настройка логирования
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+# Хранилище для задач
 tasks = {}
 
 def process_video(input_path, threshold, min_size, task_id):
     logging.info(f"Начало обработки видео: {input_path}")
-    result = filter_video(input_path, threshold=threshold, min_size=min_size)
-    
+    result = filter_video(input_path, threshold=threshold, min_size=min_size, task_id=task_id)
+
     if result:
         logging.info(f"Видео обработано: {result['output_path']}")
-        tasks[task_id] = {'status': 'SUCCESS', 'output_path': result['output_path'], 'removed_frames': result['removed_frames']}
+        tasks[task_id]['status'] = 'SUCCESS'
+        tasks[task_id]['output_path'] = result['output_path']
+        tasks[task_id]['removed_frames'] = result['removed_frames']
     else:
-        tasks[task_id] = {'status': 'FAILURE', 'error': 'Не удалось обработать видео.'}
+        tasks[task_id]['status'] = 'FAILURE'
+        tasks[task_id]['error'] = 'Не удалось обработать видео.'
 
 @app.route('/')
 def index():
@@ -44,7 +50,11 @@ def upload():
         logging.info(f"Видео сохранено: {input_path}")
 
         task_id = str(uuid.uuid4())
-        tasks[task_id] = {'status': 'PENDING'}
+        tasks[task_id] = {
+            'status': 'PENDING',
+            'processed_frames': 0,
+            'total_frames': 0
+        }
         thread = threading.Thread(target=process_video, args=(input_path, threshold, min_size, task_id))
         thread.start()
 
@@ -54,8 +64,19 @@ def upload():
 
 @app.route('/status/<task_id>')
 def task_status(task_id):
-    task = tasks.get(task_id, {'status': 'PENDING'})
-    return jsonify(task)
+    task = tasks.get(task_id)
+    if task:
+        response = {
+            'state': task.get('status', 'PENDING'),
+            'processed_frames': task.get('processed_frames', 0),
+            'total_frames': task.get('total_frames', 1),
+            'removed_frames': task.get('removed_frames', 0),
+            'percent_complete': task.get('percent_complete', 0), 
+            'result': task.get('output_path', '')
+        }
+        return jsonify(response)
+    else:
+        return jsonify({'state': 'PENDING', 'processed_frames': 0, 'total_frames': 1}), 200
 
 @app.route('/download/<filename>')
 def download_file(filename):
