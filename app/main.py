@@ -7,16 +7,13 @@ from video_processing import filter_video
 
 app = Flask(__name__)
 
-# Настройки папок
 UPLOAD_FOLDER = "/app/uploads"
 PROCESSED_FOLDER = "/app/processed"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(PROCESSED_FOLDER, exist_ok=True)
 
-# Настройка логирования
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Хранилище для задач
 tasks = {}
 
 def process_video(input_path, threshold, min_size, task_id):
@@ -28,6 +25,7 @@ def process_video(input_path, threshold, min_size, task_id):
         tasks[task_id]['status'] = 'SUCCESS'
         tasks[task_id]['output_path'] = result['output_path']
         tasks[task_id]['removed_frames'] = result['removed_frames']
+        tasks[task_id]['removed_segments'] = result['removed_segments']  # Добавили информацию о сегментах
     else:
         tasks[task_id]['status'] = 'FAILURE'
         tasks[task_id]['error'] = 'Не удалось обработать видео.'
@@ -71,7 +69,8 @@ def task_status(task_id):
             'processed_frames': task.get('processed_frames', 0),
             'total_frames': task.get('total_frames', 1),
             'removed_frames': task.get('removed_frames', 0),
-            'percent_complete': task.get('percent_complete', 0), 
+            'removed_segments': task.get('removed_segments', []),  # Добавили информацию о сегментах
+            'percent_complete': task.get('percent_complete', 0),
             'result': task.get('output_path', '')
         }
         return jsonify(response)
