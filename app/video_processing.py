@@ -3,14 +3,11 @@ import mediapipe as mp
 import os
 import logging
 
-# Настройки логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Настройки папок
 PROCESSED_FOLDER = "/app/processed"
 os.makedirs(PROCESSED_FOLDER, exist_ok=True)
 
-# Проверяем доступность GPU
 use_gpu = cv2.cuda.getCudaEnabledDeviceCount() > 0
 
 if use_gpu:
@@ -48,7 +45,7 @@ def detect_person(frame, min_size=0.1):
         confidences = [landmark.visibility for landmark in landmarks]
         avg_confidence = sum(confidences) / len(confidences)
 
-        logging.info(f"Detected person width: {person_width:.2f}, height: {person_height:.2f}, average confidence: {avg_confidence:.2f}")
+        logging.info(f"Обнаружены человек: ширина {person_width:.2f}, высота {person_height:.2f}, средняя уверенность: {avg_confidence:.2f}")
 
         if person_width > min_size or person_height > min_size:
             return True, avg_confidence 
@@ -59,7 +56,6 @@ def detect_person(frame, min_size=0.1):
 def filter_video(input_video, threshold=0.5, min_size=0.1, task_id=None):
     from main import tasks
 
-    """Функция для фильтрации видео, удаляя кадры с человеком по заданным параметрам."""
     cap = cv2.VideoCapture(input_video)
     frame_width = int(cap.get(3))
     frame_height = int(cap.get(4))
@@ -71,13 +67,15 @@ def filter_video(input_video, threshold=0.5, min_size=0.1, task_id=None):
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     frame_count = 0
     removed_frames = 0
+    removed_segments = []  # Для хранения начала и конца вырезанных фрагментов
 
     logging.info(f"Начало обработки видео: {input_video}")
     logging.info(f"Общее количество кадров: {total_frames}")
 
-    # Обновляем общее количество кадров в задаче
     if task_id:
         tasks[task_id]['total_frames'] = total_frames
+
+    segment_start = None
 
     while True:
         ret, frame = cap.read()
@@ -88,22 +86,29 @@ def filter_video(input_video, threshold=0.5, min_size=0.1, task_id=None):
         person_detected, confidence = detect_person(frame, min_size=min_size)
 
         if not person_detected or confidence < threshold:
+            if segment_start is not None:
+                removed_segments.append((segment_start / fps, (frame_count - 1) / fps))  # Изменение здесь
+                segment_start = None
             out.write(frame)
         else:
             removed_frames += 1
-            logging.info(f"Кадр {frame_count} удален: человек обнаружен с уверенностью {confidence:.2f}")
+            #Будет писать, когда человек будет обнаружен
+            # logging.info(f"Кадр {frame_count} удален: человек обнаружен с уверенностью {confidence:.2f}")
+            if segment_start is None:
+                segment_start = frame_count
 
         frame_count += 1
 
-        # Обновляем количество обработанных кадров в задаче
         if task_id:
             tasks[task_id]['processed_frames'] = frame_count
             tasks[task_id]['percent_complete'] = (frame_count / total_frames) * 100 
 
+    if segment_start is not None:
+        removed_segments.append((segment_start / fps, (frame_count - 1) / fps))  # Изменение здесь
 
     cap.release()
     out.release()
     
     logging.info(f"Обработка завершена. Удалено кадров: {removed_frames}, сохраненный файл: {output_filename}")
     
-    return {'output_path': output_filename, 'removed_frames': removed_frames}
+    return {'output_path': output_filename, 'removed_frames': removed_frames, 'removed_segments': removed_segments}
